@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IMEI Scanner & Invoicing System</title>
     <script src="https://unpkg.com"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             text-align: center;
             margin: 0;
             padding: 20px;
@@ -51,7 +51,7 @@
             margin-top: 20px;
             border-radius: 10px;
             overflow: hidden;
-            border: none !important;
+            background-color: #000;
         }
         .invoice-card {
             display: none;
@@ -125,29 +125,50 @@
 </div>
 
 <script>
-function startScanner() {
-    const html5QrCode = new Html5Qrcode("reader");
-    const config = { 
-        fps: 15, 
-        qrbox: { width: 250, height: 150 } 
-    };
+let html5QrCode = null;
 
-    html5QrCode.start(
-        { facingMode: "environment" }, 
-        config,
-        (decodedText, decodedResult) => {
-            document.getElementById("inv-imei").innerText = decodedText;
-            
-            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-            document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
-            
-            document.getElementById("invoice").style.display = "block";
-            
-            html5QrCode.stop().catch(err => console.error(err));
-        },
-        (errorMessage) => {}
-    ).catch((err) => {
-        alert("Camera initialization failed. Please check permissions: " + err);
+function startScanner() {
+    if (html5QrCode === null) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+
+    // iOS/Safari compatibility patch: requesting explicit permissions and using dynamic sizing
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then((stream) => {
+        // Stop the temporary track used to check for permissions
+        stream.getTracks().forEach(track => track.stop());
+
+        const config = { 
+            fps: 10,
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                // Responsively scale the scan box to prevent iOS initialization crashes
+                return {
+                    width: Math.floor(viewfinderWidth * 0.7),
+                    height: Math.floor(viewfinderHeight * 0.4)
+                };
+            }
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config,
+            (decodedText, decodedResult) => {
+                document.getElementById("inv-imei").innerText = decodedText;
+                
+                const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
+                
+                document.getElementById("invoice").style.display = "block";
+                
+                html5QrCode.stop().catch(err => console.error("Error stopping scanner:", err));
+            },
+            (errorMessage) => {}
+        ).catch((err) => {
+            alert("Camera failed to start inside the frame: " + err);
+        });
+    })
+    .catch((err) => {
+        alert("Camera permission denied or not supported by Safari: " + err);
     });
 }
 </script>
