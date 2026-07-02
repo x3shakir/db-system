@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMEI Scanner & Invoicing System</title>
+    <!-- HTML5-QRCODE Library for Mobile Camera Scanning -->
+    <script src="https://unpkg.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fb;
+            color: #333;
+        }
+        .container {
+            max-width: 450px;
+            margin: 20px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h2 {
+            margin-bottom: 5px;
+            color: #1a1a1a;
+        }
+        p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        .btn {
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background-color: #0051bb;
+        }
+        #reader {
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: none !important;
+        }
+        .invoice-card {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            border: 2px dashed #0070f3;
+            background: #fff;
+            text-align: left;
+            border-radius: 10px;
+        }
+        .invoice-header {
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .invoice-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .imei-highlight {
+            color: #0070f3;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 16px;
+        }
+        .print-btn {
+            background-color: #22c55e;
+            margin-top: 15px;
+        }
+        .print-btn:hover {
+            background-color: #16a34a;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>POS & IMEI Scanner</h2>
+    <p>Scan device IMEI barcode to generate an instant invoice</p>
+    
+    <button class="btn" onclick="startScanner()">⚡ Open Camera & Scan</button>
+    
+    <!-- Camera View Container -->
+    <div id="reader"></div>
+
+    <!-- Generated Invoice View -->
+    <div id="invoice" class="invoice-card">
+        <div class="invoice-header">
+            <h3>RECEIPT / INVOICE</h3>
+        </div>
+        <div class="invoice-row">
+            <span><strong>Date/Time:</strong></span>
+            <span id="inv-date"></span>
+        </div>
+        <div class="invoice-row">
+            <span><strong>IMEI / Serial:</strong></span>
+            <span id="inv-imei" class="imei-highlight"></span>
+        </div>
+        <div class="invoice-row">
+            <span><strong>Item:</strong></span>
+            <span>Smartphone (Fetched from DB)</span>
+        </div>
+        <div class="invoice-row">
+            <span><strong>Price:</strong></span>
+            <span>$500.00</span>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+        <button class="btn print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+</div>
+
+<script>
+function startScanner() {
+    // Initialize the scanner targeting the 'reader' div
+    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 15, 
+        qrbox: { width: 250, height: 150 } // Optimized box shape for linear barcodes like IMEI
+    });
+    
+    html5QrcodeScanner.render((decodedText, decodedResult) => {
+        // Triggered upon successful barcode scan
+        document.getElementById("inv-imei").innerText = decodedText;
+        
+        // Generate current timestamp
+        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
+        
+        // Reveal the invoice card
+        document.getElementById("invoice").style.opacity = 0;
+        document.getElementById("invoice").style.display = "block";
+        setTimeout(() => { document.getElementById("invoice").style.opacity = 1; }, 50);
+        
+        // Stop the camera view after a successful scan
+        html5QrcodeScanner.clear();
+    }, (error) => {
+        // Silent catch for scanning frames (can be ignored to maintain camera loop)
+    });
+}
+</script>
+
+</body>
+</html>
