@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMEI Scanner & Invoicing System</title>
-    <!-- HTML5-QRCODE Library for Mobile Camera Scanning -->
     <script src="https://unpkg.com"></script>
     <style>
         body {
@@ -98,10 +97,8 @@
     
     <button class="btn" onclick="startScanner()">⚡ Open Camera & Scan</button>
     
-    <!-- Camera View Container -->
     <div id="reader"></div>
 
-    <!-- Generated Invoice View -->
     <div id="invoice" class="invoice-card">
         <div class="invoice-header">
             <h3>RECEIPT / INVOICE</h3>
@@ -129,28 +126,28 @@
 
 <script>
 function startScanner() {
-    // Initialize the scanner targeting the 'reader' div
-    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { 
         fps: 15, 
-        qrbox: { width: 250, height: 150 } // Optimized box shape for linear barcodes like IMEI
-    });
-    
-    html5QrcodeScanner.render((decodedText, decodedResult) => {
-        // Triggered upon successful barcode scan
-        document.getElementById("inv-imei").innerText = decodedText;
-        
-        // Generate current timestamp
-        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
-        
-        // Reveal the invoice card
-        document.getElementById("invoice").style.opacity = 0;
-        document.getElementById("invoice").style.display = "block";
-        setTimeout(() => { document.getElementById("invoice").style.opacity = 1; }, 50);
-        
-        // Stop the camera view after a successful scan
-        html5QrcodeScanner.clear();
-    }, (error) => {
+        qrbox: { width: 250, height: 150 } 
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config,
+        (decodedText, decodedResult) => {
+            document.getElementById("inv-imei").innerText = decodedText;
+            
+            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
+            
+            document.getElementById("invoice").style.display = "block";
+            
+            html5QrCode.stop().catch(err => console.error(err));
+        },
+        (errorMessage) => {}
+    ).catch((err) => {
+        alert("Camera initialization failed. Please check permissions: " + err);
     });
 }
 </script>
