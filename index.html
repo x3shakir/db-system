@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ultra IMEI Scanner</title>
+<title>Live IMEI Scanner</title>
 
 <style>
 body{
@@ -16,10 +16,17 @@ body{
 .container{
     max-width:500px;
     margin:auto;
-    background:white;
+    background:#fff;
     padding:20px;
     border-radius:12px;
     box-shadow:0 4px 15px rgba(0,0,0,0.1);
+}
+
+video{
+    width:100%;
+    border-radius:10px;
+    margin-top:10px;
+    background:black;
 }
 
 .btn{
@@ -36,198 +43,102 @@ body{
 
 .btn:hover{background:#0051bb;}
 
-input{
-    width:100%;
-    padding:10px;
-    margin-top:10px;
-    font-size:16px;
-}
-
 #status{
     margin-top:10px;
     color:#0070f3;
-}
-
-/* 🔥 Progress Bar */
-.progress-container{
-    width:100%;
-    background:#e5e7eb;
-    border-radius:10px;
-    margin-top:10px;
-    overflow:hidden;
-    height:12px;
-    display:none;
-}
-
-.progress-bar{
-    height:12px;
-    width:0%;
-    background:linear-gradient(90deg,#0070f3,#00c6ff);
-    transition:width 0.2s;
-}
-
-.invoice{
-    display:none;
-    margin-top:20px;
-    border:2px dashed #0070f3;
-    padding:15px;
-    text-align:left;
+    font-weight:bold;
 }
 
 .imei{
-    font-weight:bold;
+    font-size:18px;
     color:#0070f3;
+    font-weight:bold;
 }
 </style>
-
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>🔥 Ultra IMEI Scanner</h2>
+<h2>📷 Live IMEI Scanner</h2>
 
-<input type="file" accept="image/*" capture="environment" id="fileInput">
+<video id="video" autoplay></video>
 
-<input type="text" id="imei" placeholder="IMEI">
+<button class="btn" onclick="startScan()">Start Camera</button>
+<button class="btn" onclick="stopScan()">Stop</button>
 
-<div id="status"></div>
+<div id="status">Camera inactive</div>
 
-<div class="progress-container" id="progressContainer">
-    <div class="progress-bar" id="progressBar"></div>
-</div>
-
-<button class="btn" onclick="generateInvoice()">Generate Invoice</button>
-
-<div class="invoice" id="invoice">
-<h3>INVOICE</h3>
-<p>IMEI: <span class="imei" id="invImei"></span></p>
-<p>Date: <span id="date"></span></p>
-<p>Item: Smartphone</p>
-<p>Price: $500</p>
-<button class="btn" onclick="window.print()">Print</button>
-</div>
+<p>IMEI: <span class="imei" id="imei"></span></p>
 
 </div>
 
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 
 <script>
-let detector = null;
-if('BarcodeDetector' in window){
-    detector = new BarcodeDetector({
-        formats:[
-            'code_128','code_39','ean_13','qr_code','pdf417','upc_a'
-        ]
+const video = document.getElementById("video");
+const status = document.getElementById("status");
+
+const codeReader = new ZXing.BrowserMultiFormatReader();
+
+let stream = null;
+let scanning = false;
+
+async function startCamera(){
+    stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:"environment" }
     });
+    video.srcObject = stream;
 }
 
-const reader = new ZXing.BrowserMultiFormatReader();
-
-function setProgress(val){
-    document.getElementById("progressContainer").style.display="block";
-    document.getElementById("progressBar").style.width = val + "%";
+function stopCamera(){
+    if(stream){
+        stream.getTracks().forEach(t=>t.stop());
+    }
+    video.srcObject = null;
 }
 
-function resetProgress(){
-    setTimeout(()=>{
-        document.getElementById("progressContainer").style.display="none";
-        document.getElementById("progressBar").style.width="0%";
-    },800);
+async function startScan(){
+
+    await startCamera();
+
+    scanning = true;
+    status.innerText = "Scanning for IMEI...";
+
+    scanLoop();
 }
 
-document.getElementById("fileInput").addEventListener("change", async function(e){
-
-    const file = e.target.files[0];
-    if(!file) return;
-
-    const status = document.getElementById("status");
-
-    status.innerText = "Scanning started...";
-    setProgress(10);
-
-    const bitmap = await createImageBitmap(file);
-
-    setProgress(30);
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    const scale = Math.min(1600 / bitmap.width, 1600 / bitmap.height, 1);
-
-    canvas.width = bitmap.width * scale;
-    canvas.height = bitmap.height * scale;
-
-    // 🔥 تحسين قوي للصورة
-    ctx.filter = "contrast(1.7) brightness(1.2) grayscale(1)";
-    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
-
-    let raw = "";
-
-    setProgress(50);
-
-    // 1. BarcodeDetector
-    if(detector){
-        try{
-            const res = await detector.detect(canvas);
-            if(res.length) raw = res[0].rawValue;
-        }catch(e){}
-    }
-
-    setProgress(70);
-
-    // 2. ZXing من الملف مباشرة (الأقوى)
-    if(!raw){
-        try{
-            const result = await reader.decodeFromImageUrl(URL.createObjectURL(file));
-            raw = result.text;
-        }catch(e){}
-    }
-
-    setProgress(90);
-
-    // 3. fallback canvas
-    if(!raw){
-        try{
-            const result = await reader.decodeFromCanvas(canvas);
-            raw = result.text;
-        }catch(e){}
-    }
-
-    setProgress(100);
-
-    // استخراج IMEI
-    const match = raw.match(/\d{14,16}/);
-
-    if(match){
-        document.getElementById("imei").value = match[0];
-        status.innerText = "IMEI detected successfully!";
-    } else {
-        status.innerText = "No IMEI found - enter manually";
-    }
-
-    resetProgress();
-});
-
-// تحقق IMEI
-function validateIMEI(imei){
-    return /^\d{15}$/.test(imei);
+function stopScan(){
+    scanning = false;
+    stopCamera();
+    status.innerText = "Stopped";
 }
 
-function generateInvoice(){
+function scanLoop(){
 
-    const imei = document.getElementById("imei").value.trim();
+    if(!scanning) return;
 
-    if(!validateIMEI(imei)){
-        alert("Invalid IMEI");
-        return;
-    }
+    try{
+        codeReader.decodeOnceFromVideoElement(video)
+        .then(result=>{
 
-    document.getElementById("invImei").innerText = imei;
-    document.getElementById("date").innerText = new Date().toLocaleString();
+            const text = result.text;
+            const match = text.match(/\d{15}/);
 
-    document.getElementById("invoice").style.display="block";
+            if(match){
+                document.getElementById("imei").innerText = match[0];
+                status.innerText = "IMEI detected!";
+                stopScan();
+                return;
+            }
+
+        })
+        .catch(()=>{});
+
+    }catch(e){}
+
+    requestAnimationFrame(scanLoop);
 }
 </script>
 
