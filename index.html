@@ -41,6 +41,7 @@ input{
     padding:10px;
     margin-top:10px;
     font-size:16px;
+    box-sizing: border-box;
 }
 
 #status{
@@ -80,17 +81,28 @@ input{
 <h3>INVOICE</h3>
 <p>IMEI: <span class="imei" id="invImei"></span></p>
 <p>Date: <span id="date"></span></p>
-<p>Item: Smartphone</p>
-<p>Price: $500</p>
+<p>Item: <span id="invItem">Smartphone</span></p>
+<p>Price: $<span id="invPrice">500</span></p>
 <button class="btn" onclick="window.print()">Print</button>
 </div>
 
 </div>
 
-<!-- ZXing Library -->
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+<!-- External Engines Modules -->
+<script src="https://unpkg.com"></script>
+<script src="https://unpkg.com"></script>
 
 <script>
+// --- DATABASE INITIALIZATION CONFIGURATION ---
+// Replace placeholders with your actual Supabase dashboard credentials when ready
+const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE";
+const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
+let supabase = null;
+
+if (SUPABASE_URL !== "YOUR_SUPABASE_URL_HERE" && SUPABASE_KEY !== "YOUR_SUPABASE_ANON_KEY_HERE") {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
 let detector = null;
 if('BarcodeDetector' in window){
     detector = new BarcodeDetector({
@@ -113,7 +125,6 @@ document.getElementById("fileInput").addEventListener("change", async function(e
 
     const bitmap = await createImageBitmap(file);
 
-    // تحسين الصورة
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -122,13 +133,11 @@ document.getElementById("fileInput").addEventListener("change", async function(e
     canvas.width = bitmap.width * scale;
     canvas.height = bitmap.height * scale;
 
-    // تحسين contrast بسيط
     ctx.filter = "contrast(1.3) brightness(1.1)";
     ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
 
     let raw = "";
 
-    // 1. BarcodeDetector (سريع)
     if(detector){
         try{
             const res = await detector.detect(canvas);
@@ -138,7 +147,6 @@ document.getElementById("fileInput").addEventListener("change", async function(e
         }catch(e){}
     }
 
-    // 2. ZXing (احترافي قوي)
     if(!raw){
         try{
             const result = await codeReader.decodeFromCanvas(canvas);
@@ -146,12 +154,17 @@ document.getElementById("fileInput").addEventListener("change", async function(e
         }catch(e){}
     }
 
-    // استخراج IMEI
     const match = raw.match(/\d{15}/);
 
     if(match){
-        document.getElementById("imei").value = match[0];
+        const detectedIMEI = match[0];
+        document.getElementById("imei").value = detectedIMEI;
         status.innerText = "IMEI detected successfully!";
+        
+        // Dynamic look-up action if cloud db environment is ready
+        if (supabase) {
+            fetchProductDetails(detectedIMEI);
+        }
     }else{
         status.innerText = "No IMEI found - enter manually";
     }
@@ -159,13 +172,59 @@ document.getElementById("fileInput").addEventListener("change", async function(e
     setTimeout(()=>status.style.display="none",3000);
 });
 
-// تحقق IMEI
 function validateIMEI(imei){
     return /^\d{15}$/.test(imei);
 }
 
-function generateInvoice(){
+// Fetch dynamic model info and price lists from database inventory
+async function fetchProductDetails(imeiNumber) {
+    const status = document.getElementById("status");
+    try {
+        status.style.display = "block";
+        status.innerText = "Checking inventory database...";
+        
+        const { data, error } = await supabase
+            .from('products')
+            .select('item_name, price')
+            .eq('imei', imeiNumber)
+            .single();
 
+        if (data) {
+            document.getElementById("invItem").innerText = data.item_name;
+            document.getElementById("invPrice").innerText = data.price;
+            status.innerText = "Product details linked!";
+        } else {
+            status.innerText = "New device IMEI (Defaulting to basic setup)";
+            document.getElementById("invItem").innerText = "Smartphone";
+            document.getElementById("invPrice").innerText = "500";
+        }
+    } catch (e) {
+        console.error("Lookup mismatch bypassing:", e);
+    }
+    setTimeout(()=>status.style.display="none",2000);
+}
+
+// Save issued transactions globally to log files 
+async function saveInvoiceToSupabase(imeiNumber, itemName, itemPrice) {
+    if (!supabase) return;
+    try {
+        await supabase
+            .from('invoices')
+            .insert([
+                { 
+                    imei: imeiNumber, 
+                    item_name: itemName, 
+                    price: parseFloat(itemPrice),
+                    created_at: new Date().toISOString()
+                }
+            ]);
+        console.log("Transaction synchronized online successfully.");
+    } catch (e) {
+        console.error("Sync database logging interrupted:", e);
+    }
+}
+
+function generateInvoice(){
     const imei = document.getElementById("imei").value.trim();
 
     if(!validateIMEI(imei)){
@@ -173,10 +232,15 @@ function generateInvoice(){
         return;
     }
 
+    const finalItem = document.getElementById("invItem").innerText;
+    const finalPrice = document.getElementById("invPrice").innerText;
+
     document.getElementById("invImei").innerText = imei;
     document.getElementById("date").innerText = new Date().toLocaleString();
-
     document.getElementById("invoice").style.display = "block";
+
+    // Silently pushes transaction records online if config parameters exist
+    saveInvoiceToSupabase(imei, finalItem, finalPrice);
 }
 </script>
 
