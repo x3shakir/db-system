@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IMEI Scanner & Invoicing System</title>
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -109,14 +109,14 @@
 
 <div class="container">
     <h2>POS & IMEI Scanner</h2>
-    <p>Take a photo of the IMEI barcode to generate an instant invoice</p>
+    <p>Take a sharp photo of the IMEI barcode to generate an invoice</p>
     
     <div class="file-input-wrapper">
         <button class="btn">📷 Open Camera & Scan</button>
         <input type="file" accept="image/*" capture="environment" id="barcode-file" onchange="scanImage(this)">
     </div>
 
-    <div id="loading">Processing barcode image...</div>
+    <div id="loading">Processing IMEI Barcode...</div>
 
     <div id="invoice" class="invoice-card">
         <div class="invoice-header">
@@ -151,7 +151,15 @@ function scanImage(input) {
     document.getElementById("loading").style.display = "block";
     document.getElementById("invoice").style.display = "none";
 
-    const html5QrCode = new Html5Qrcode("invoice"); 
+    // Creating internal container to run the decoding logic with strict Formats configuration
+    const html5QrCode = new Html5Qrcode("invoice", {
+        formatsToSupport: [ 
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.QR_CODE
+        ]
+    }); 
     
     html5QrCode.scanFile(file, true)
     .then(decodedText => {
@@ -165,7 +173,7 @@ function scanImage(input) {
     })
     .catch(err => {
         document.getElementById("loading").style.display = "none";
-        alert("Could not detect a clear barcode. Please take a clearer photo closer to the IMEI code.");
+        alert("Failed to read IMEI. Please make sure the barcode is centered, well-lit, and not blurry.");
     });
 }
 </script>
