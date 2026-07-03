@@ -53,6 +53,11 @@
             overflow: hidden;
             background-color: #000;
         }
+        #reader video {
+            width: 100% !important;
+            height: auto !important;
+            border-radius: 10px;
+        }
         .invoice-card {
             display: none;
             margin-top: 30px;
@@ -132,19 +137,22 @@ function startScanner() {
         html5QrCode = new Html5Qrcode("reader");
     }
 
-    // iOS/Safari compatibility patch: requesting explicit permissions and using dynamic sizing
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-    .then((stream) => {
-        // Stop the temporary track used to check for permissions
-        stream.getTracks().forEach(track => track.stop());
+    const constraints = { 
+        video: { 
+            facingMode: "environment",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+        } 
+    };
 
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then((stream) => {
         const config = { 
             fps: 10,
             qrbox: function(viewfinderWidth, viewfinderHeight) {
-                // Responsively scale the scan box to prevent iOS initialization crashes
                 return {
-                    width: Math.floor(viewfinderWidth * 0.7),
-                    height: Math.floor(viewfinderHeight * 0.4)
+                    width: Math.floor(viewfinderWidth * 0.8),
+                    height: Math.floor(viewfinderHeight * 0.5)
                 };
             }
         };
@@ -154,21 +162,28 @@ function startScanner() {
             config,
             (decodedText, decodedResult) => {
                 document.getElementById("inv-imei").innerText = decodedText;
-                
                 const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
                 document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
-                
                 document.getElementById("invoice").style.display = "block";
                 
-                html5QrCode.stop().catch(err => console.error("Error stopping scanner:", err));
+                html5QrCode.stop().then(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                }).catch(err => console.error(err));
             },
             (errorMessage) => {}
-        ).catch((err) => {
-            alert("Camera failed to start inside the frame: " + err);
+        ).then(() => {
+            const videoElement = document.querySelector("#reader video");
+            if (videoElement) {
+                videoElement.setAttribute("playsinline", "true");
+                videoElement.setAttribute("webkit-playsinline", "true");
+                videoElement.play().catch(e => console.error("Playback prevented:", e));
+            }
+        }).catch((err) => {
+            alert("Scanner error: " + err);
         });
     })
     .catch((err) => {
-        alert("Camera permission denied or not supported by Safari: " + err);
+        alert("Camera initialization blocked: " + err);
     });
 }
 </script>
