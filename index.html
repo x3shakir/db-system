@@ -1,73 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>iPhone Ultra Scanner</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMEI Scanner Fix</title>
 <style>
-body{
-    font-family:Arial;
-    background:#f5f7fb;
-    text-align:center;
-    padding:20px;
-}
-
-.container{
-    max-width:520px;
-    margin:auto;
-    background:white;
-    padding:20px;
-    border-radius:14px;
-    box-shadow:0 4px 18px rgba(0,0,0,0.15);
-}
-
-video{
-    width:100%;
-    border-radius:12px;
-    background:black;
-}
-
-.btn{
-    width:100%;
-    padding:14px;
-    margin-top:10px;
-    background:#0070f3;
-    color:white;
-    border:none;
-    border-radius:10px;
-    font-size:16px;
-}
-
-.btn:active{transform:scale(0.98);}
-
-#status{
-    margin-top:10px;
-    font-weight:bold;
-    color:#0070f3;
-}
-
-.imei{
-    font-size:20px;
-    font-weight:bold;
-    color:#0070f3;
-}
-
-.bar{
-    width:100%;
-    height:10px;
-    background:#e5e7eb;
-    border-radius:10px;
-    overflow:hidden;
-    margin-top:10px;
-}
-
-.bar-fill{
-    width:0%;
-    height:10px;
-    background:linear-gradient(90deg,#0070f3,#00c6ff);
-    transition:width .2s;
-}
+body{font-family:Arial;text-align:center;background:#f5f7fb;padding:20px}
+.container{max-width:500px;margin:auto;background:#fff;padding:20px;border-radius:12px}
+video{width:100%;border-radius:10px}
+.btn{width:100%;padding:12px;margin-top:10px;background:#0070f3;color:#fff;border:none;border-radius:8px}
+#status{margin-top:10px;color:#0070f3;font-weight:bold}
 </style>
 </head>
 
@@ -75,84 +17,43 @@ video{
 
 <div class="container">
 
-<h2>📱 iPhone Ultra IMEI Scanner</h2>
+<h2>📱 IMEI Scanner (Fixed iPhone)</h2>
 
 <video id="video" autoplay playsinline></video>
 
-<div class="bar">
-    <div class="bar-fill" id="bar"></div>
-</div>
-
-<button class="btn" onclick="startScan()">Start Scan</button>
-<button class="btn" onclick="stopScan()" style="background:#ef4444;">Stop</button>
+<button class="btn" onclick="startCamera()">Start Camera</button>
+<button class="btn" onclick="capture()">Capture & Scan</button>
 
 <div id="status">Ready</div>
 
-<p>IMEI: <span class="imei" id="imei"></span></p>
+<p>IMEI: <b id="imei"></b></p>
 
 </div>
 
-<script>
-let stream = null;
-let scanning = false;
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 
+<script>
 const video = document.getElementById("video");
 const status = document.getElementById("status");
-const bar = document.getElementById("bar");
+const reader = new ZXing.BrowserMultiFormatReader();
 
-function setBar(v){
-    bar.style.width = v + "%";
-}
+let stream = null;
 
 async function startCamera(){
 
     stream = await navigator.mediaDevices.getUserMedia({
-        video:{
-            facingMode:{ exact:"environment" }
-        },
-        audio:false
-    }).catch(async ()=>{
-
-        return await navigator.mediaDevices.getUserMedia({
-            video:{ facingMode:"environment" },
-            audio:false
-        });
-
+        video:{ facingMode:"environment" }
     });
 
     video.srcObject = stream;
     await video.play();
+
+    status.innerText = "Camera ready";
 }
 
-function stopCamera(){
-    if(stream){
-        stream.getTracks().forEach(t=>t.stop());
-    }
-    video.srcObject = null;
-}
+async function capture(){
 
-async function startScan(){
-
-    await startCamera();
-
-    scanning = true;
-    status.innerText = "Scanning...";
-
-    scanLoop();
-}
-
-function stopScan(){
-    scanning = false;
-    stopCamera();
-    status.innerText = "Stopped";
-    setBar(0);
-}
-
-function scanLoop(){
-
-    if(!scanning) return;
-
-    setBar(30);
+    status.innerText = "Scanning frame...";
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -160,32 +61,24 @@ function scanLoop(){
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // 🔥 تحسين الصورة (مهم جدًا لـ iPhone)
-    ctx.filter = "contrast(1.8) brightness(1.2) grayscale(1)";
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,0,0);
 
-    setBar(60);
-
-    // 🔥 محاولة قراءة النص من frame
     try{
-        const text = canvas.toDataURL(); // fallback trigger
+        const result = await reader.decodeFromCanvas(canvas);
 
-        // IMEI detection (robust)
+        const text = result.text;
         const match = text.match(/\d{15}/);
 
         if(match){
             document.getElementById("imei").innerText = match[0];
-            status.innerText = "IMEI detected!";
-            setBar(100);
-            stopScan();
-            return;
+            status.innerText = "IMEI Found!";
+        }else{
+            status.innerText = "No IMEI detected";
         }
 
-    }catch(e){}
-
-    setBar(80);
-
-    requestAnimationFrame(scanLoop);
+    }catch(e){
+        status.innerText = "Scan failed - try again";
+    }
 }
 </script>
 
