@@ -3,78 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IMEI Scanner System</title>
-<!-- 1. Imported the official ZXing library script -->
-<script src="https://unpkg.com"></script>
+<title>Pro IMEI Scanner</title>
 
 <style>
-body {
-    font-family: Arial;
+body{
+    font-family:Arial;
     background:#f5f7fb;
-    margin:0;
-    padding:20px;
     text-align:center;
+    padding:20px;
 }
 
-.container {
-    max-width:450px;
+.container{
+    max-width:500px;
     margin:auto;
-    background:white;
+    background:#fff;
     padding:20px;
     border-radius:12px;
-    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+    box-shadow:0 4px 15px rgba(0,0,0,0.1);
 }
 
-.btn {
+.btn{
     width:100%;
     padding:12px;
     background:#0070f3;
-    color:white;
+    color:#fff;
     border:none;
     border-radius:8px;
+    margin-top:10px;
     font-size:16px;
     cursor:pointer;
-    margin-top:10px;
 }
 
-.btn:hover { background:#0051bb; }
+.btn:hover{background:#0051bb;}
 
-input {
+input{
     width:100%;
     padding:10px;
     margin-top:10px;
     font-size:16px;
-    box-sizing: border-box; /* Fixed input overflow stretch */
 }
 
-#status {
+#status{
+    display:none;
     margin-top:10px;
     color:#0070f3;
-    display:none;
 }
 
-.invoice {
+.invoice{
     display:none;
     margin-top:20px;
-    padding:15px;
     border:2px dashed #0070f3;
+    padding:15px;
     text-align:left;
 }
-.imei { font-weight:bold; color:#0070f3; }
+
+.imei{color:#0070f3;font-weight:bold;}
 </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>IMEI Scanner</h2>
+<h2>📷 Pro IMEI Scanner</h2>
 
 <input type="file" accept="image/*" capture="environment" id="fileInput">
 
-<div id="status">Processing...</div>
+<input type="text" id="imei" placeholder="IMEI">
 
-<input type="text" id="imei" placeholder="IMEI will appear here">
+<div id="status">Scanning...</div>
 
 <button class="btn" onclick="generateInvoice()">Generate Invoice</button>
 
@@ -89,83 +87,85 @@ input {
 
 </div>
 
+<!-- ZXing Library -->
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+
 <script>
 let detector = null;
-if ('BarcodeDetector' in window) {
+if('BarcodeDetector' in window){
     detector = new BarcodeDetector({
-        formats: ['code_128','code_39','ean_13','qr_code','pdf417']
+        formats:[
+            'code_128','code_39','ean_13','qr_code','pdf417','upc_a'
+        ]
     });
 }
 
+const codeReader = new ZXing.BrowserMultiFormatReader();
+
 document.getElementById("fileInput").addEventListener("change", async function(e){
+
     const file = e.target.files[0];
     if(!file) return;
 
     const status = document.getElementById("status");
     status.style.display = "block";
-    status.innerText = "Scanning image...";
+    status.innerText = "Processing image...";
 
-    const imgBitmap = await createImageBitmap(file);
+    const bitmap = await createImageBitmap(file);
 
+    // تحسين الصورة
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
-    const scale = Math.min(1280 / imgBitmap.width, 1280 / imgBitmap.height, 1);
+    const scale = Math.min(1280 / bitmap.width, 1280 / bitmap.height, 1);
 
-    canvas.width = imgBitmap.width * scale;
-    canvas.height = imgBitmap.height * scale;
+    canvas.width = bitmap.width * scale;
+    canvas.height = bitmap.height * scale;
 
-    ctx.drawImage(imgBitmap,0,0,canvas.width,canvas.height);
+    // تحسين contrast بسيط
+    ctx.filter = "contrast(1.3) brightness(1.1)";
+    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
 
     let raw = "";
 
-    // 1. BarcodeDetector
+    // 1. BarcodeDetector (سريع)
     if(detector){
-        try {
-            const result = await detector.detect(canvas);
-            if(result.length){
-                raw = result[0].rawValue;
+        try{
+            const res = await detector.detect(canvas);
+            if(res.length){
+                raw = res[0].rawValue;
             }
-        } catch(err){
-            console.log("Detector error", err);
-        }
+        }catch(e){}
     }
 
-    // 2. Fallback ZXing (Fully implemented now)
+    // 2. ZXing (احترافي قوي)
     if(!raw){
-        raw = await realZXing(canvas);
+        try{
+            const result = await codeReader.decodeFromCanvas(canvas);
+            raw = result.text;
+        }catch(e){}
     }
 
-    // Extract IMEI digits sequences safely
+    // استخراج IMEI
     const match = raw.match(/\d{15}/);
 
     if(match){
         document.getElementById("imei").value = match[0];
-        status.innerText = "IMEI detected!";
-    } else {
-        status.innerText = "No IMEI found, enter manually.";
+        status.innerText = "IMEI detected successfully!";
+    }else{
+        status.innerText = "No IMEI found - enter manually";
     }
 
     setTimeout(()=>status.style.display="none",3000);
 });
 
-// Operational MultiFormat ZXing Canvas Reader
-async function realZXing(canvas){
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-    try {
-        const result = await codeReader.decodeFromCanvas(canvas);
-        return result ? result.text : "";
-    } catch (err) {
-        console.log("ZXing Fallback error", err);
-        return "";
-    }
-}
-
+// تحقق IMEI
 function validateIMEI(imei){
     return /^\d{15}$/.test(imei);
 }
 
 function generateInvoice(){
+
     const imei = document.getElementById("imei").value.trim();
 
     if(!validateIMEI(imei)){
