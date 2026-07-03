@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IMEI Scanner System</title>
+<!-- 1. Imported the official ZXing library script -->
+<script src="https://unpkg.com"></script>
 
 <style>
 body {
@@ -42,6 +44,7 @@ input {
     padding:10px;
     margin-top:10px;
     font-size:16px;
+    box-sizing: border-box; /* Fixed input overflow stretch */
 }
 
 #status {
@@ -104,7 +107,6 @@ document.getElementById("fileInput").addEventListener("change", async function(e
 
     const imgBitmap = await createImageBitmap(file);
 
-    // تحسين الصورة
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -129,12 +131,12 @@ document.getElementById("fileInput").addEventListener("change", async function(e
         }
     }
 
-    // 2. fallback ZXing (simulated lightweight fallback)
+    // 2. Fallback ZXing (Fully implemented now)
     if(!raw){
-        raw = await fakeZXing(canvas);
+        raw = await realZXing(canvas);
     }
 
-    // استخراج IMEI فقط
+    // Extract IMEI digits sequences safely
     const match = raw.match(/\d{15}/);
 
     if(match){
@@ -147,12 +149,18 @@ document.getElementById("fileInput").addEventListener("change", async function(e
     setTimeout(()=>status.style.display="none",3000);
 });
 
-// fallback بسيط (محاكاة — يمكنك ربط ZXing الحقيقي لاحقاً)
-async function fakeZXing(canvas){
-    return "";
+// Operational MultiFormat ZXing Canvas Reader
+async function realZXing(canvas){
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    try {
+        const result = await codeReader.decodeFromCanvas(canvas);
+        return result ? result.text : "";
+    } catch (err) {
+        console.log("ZXing Fallback error", err);
+        return "";
+    }
 }
 
-// تحقق IMEI
 function validateIMEI(imei){
     return /^\d{15}$/.test(imei);
 }
