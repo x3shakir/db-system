@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live IMEI Scanner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>iPhone IMEI Scanner Pro</title>
 
 <style>
 body{
@@ -14,45 +14,58 @@ body{
 }
 
 .container{
-    max-width:500px;
+    max-width:520px;
     margin:auto;
     background:#fff;
     padding:20px;
-    border-radius:12px;
-    box-shadow:0 4px 15px rgba(0,0,0,0.1);
+    border-radius:14px;
+    box-shadow:0 4px 18px rgba(0,0,0,0.12);
 }
 
 video{
     width:100%;
-    border-radius:10px;
-    margin-top:10px;
+    border-radius:12px;
     background:black;
 }
 
 .btn{
     width:100%;
-    padding:12px;
+    padding:14px;
     background:#0070f3;
     color:white;
     border:none;
-    border-radius:8px;
+    border-radius:10px;
     margin-top:10px;
-    cursor:pointer;
     font-size:16px;
 }
 
-.btn:hover{background:#0051bb;}
+.btn:active{transform:scale(0.98);}
 
 #status{
     margin-top:10px;
+    font-weight:bold;
+    color:#0070f3;
+}
+
+.imei{
+    font-size:20px;
     color:#0070f3;
     font-weight:bold;
 }
 
-.imei{
-    font-size:18px;
-    color:#0070f3;
-    font-weight:bold;
+.bar{
+    height:10px;
+    background:#e5e7eb;
+    border-radius:10px;
+    overflow:hidden;
+    margin-top:10px;
+}
+
+.bar-fill{
+    height:10px;
+    width:0%;
+    background:linear-gradient(90deg,#0070f3,#00c6ff);
+    transition:width .2s;
 }
 </style>
 </head>
@@ -61,16 +74,24 @@ video{
 
 <div class="container">
 
-<h2>📷 Live IMEI Scanner</h2>
+<h2>📱 iPhone IMEI Scanner Pro</h2>
 
-<video id="video" autoplay></video>
+<video id="video" autoplay playsinline></video>
 
-<button class="btn" onclick="startScan()">Start Camera</button>
-<button class="btn" onclick="stopScan()">Stop</button>
+<div class="bar">
+    <div class="bar-fill" id="bar"></div>
+</div>
 
-<div id="status">Camera inactive</div>
+<button class="btn" onclick="startScan()">Start Scan</button>
+<button class="btn" onclick="stopScan()" style="background:#ef4444;">Stop</button>
+
+<div id="status">Ready</div>
 
 <p>IMEI: <span class="imei" id="imei"></span></p>
+
+<audio id="beep">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
+</audio>
 
 </div>
 
@@ -79,17 +100,44 @@ video{
 <script>
 const video = document.getElementById("video");
 const status = document.getElementById("status");
-
+const bar = document.getElementById("bar");
 const codeReader = new ZXing.BrowserMultiFormatReader();
 
 let stream = null;
 let scanning = false;
 
+function vibrate(){
+    if(navigator.vibrate){
+        navigator.vibrate(200);
+    }
+}
+
+function beep(){
+    document.getElementById("beep").play();
+}
+
+function setBar(v){
+    bar.style.width = v + "%";
+}
+
 async function startCamera(){
+
     stream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:"environment" }
+        video:{
+            facingMode:{ exact:"environment" }
+        },
+        audio:false
+    }).catch(async ()=>{
+
+        return await navigator.mediaDevices.getUserMedia({
+            video:{ facingMode:"environment" },
+            audio:false
+        });
+
     });
+
     video.srcObject = stream;
+    await video.play();
 }
 
 function stopCamera(){
@@ -104,7 +152,8 @@ async function startScan(){
     await startCamera();
 
     scanning = true;
-    status.innerText = "Scanning for IMEI...";
+    status.innerText = "Scanning...";
+    setBar(20);
 
     scanLoop();
 }
@@ -113,30 +162,48 @@ function stopScan(){
     scanning = false;
     stopCamera();
     status.innerText = "Stopped";
+    setBar(0);
 }
 
 function scanLoop(){
 
     if(!scanning) return;
 
-    try{
-        codeReader.decodeOnceFromVideoElement(video)
-        .then(result=>{
+    setBar(50);
 
-            const text = result.text;
-            const match = text.match(/\d{15}/);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-            if(match){
-                document.getElementById("imei").innerText = match[0];
-                status.innerText = "IMEI detected!";
-                stopScan();
-                return;
-            }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-        })
-        .catch(()=>{});
+    ctx.filter = "contrast(1.6) grayscale(1) brightness(1.1)";
+    ctx.drawImage(video,0,0);
 
-    }catch(e){}
+    codeReader.decodeFromCanvas(canvas)
+    .then(result=>{
+
+        const text = result.text;
+        const match = text.match(/\d{15}/);
+
+        if(match){
+
+            document.getElementById("imei").innerText = match[0];
+
+            status.innerText = "IMEI Found!";
+            setBar(100);
+
+            vibrate();
+            beep();
+
+            stopScan();
+            return;
+        }
+
+    })
+    .catch(()=>{});
+
+    setBar(80);
 
     requestAnimationFrame(scanLoop);
 }
