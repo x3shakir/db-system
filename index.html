@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IMEI Scanner & Invoicing System</title>
+    <!-- Embedded AI Engine for Text Recognition (OCR) -->
     <script src="https://unpkg.com"></script>
     <style>
         body {
@@ -30,25 +31,6 @@
             color: #666;
             font-size: 14px;
             margin-bottom: 25px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        .input-group label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-        .input-field {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-family: monospace;
         }
         .file-input-wrapper {
             position: relative;
@@ -83,11 +65,25 @@
             width: 100%;
             height: 100%;
         }
-        .secondary-btn {
-            background-color: #4b5563;
+        .input-group {
+            margin-top: 20px;
+            margin-bottom: 20px;
+            text-align: left;
         }
-        .secondary-btn:hover {
-            background-color: #374151;
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-family: monospace;
         }
         .invoice-card {
             display: none;
@@ -129,47 +125,30 @@
             margin-top: 15px;
             font-weight: bold;
         }
-        .divider {
-            margin: 20px 0;
-            display: flex;
-            align-items: center;
-            text-align: center;
-            color: #9ca3af;
-            font-size: 14px;
-        }
-        .divider::before, .divider::after {
-            content: '';
-            flex: 1;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .divider:not(:empty)::before { margin-right: .25em; }
-        .divider:not(:empty)::after { margin-left: .25em; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>POS & IMEI System</h2>
-    <p>Generate instant business invoices using IMEI number</p>
+    <h2>AI POS & IMEI System</h2>
+    <p>Snap screen digits or enter manually to generate invoices</p>
     
-    <!-- Method 1: Manual Entry (For screen code reading) -->
-    <div class="input-group">
-        <label for="imei-manual">Enter IMEI Manually (From *#06#):</label>
-        <input type="text" id="imei-manual" class="input-field" placeholder="Enter 15-digit IMEI number" maxlength="15">
-    </div>
-    <button class="btn" onclick="generateManualInvoice()">📋 Generate Invoice</button>
-
-    <div class="divider">OR</div>
-
-    <!-- Method 2: Barcode Scanning (For boxes and stickers) -->
+    <!-- AI Scan Input Mode -->
     <div class="file-input-wrapper">
-        <button class="btn secondary-btn">📷 Scan Barcode from Box</button>
-        <input type="file" accept="image/*" capture="environment" id="barcode-file" onchange="scanImage(this)">
+        <button class="btn">📷 Snap Phone Screen (*#06#)</button>
+        <input type="file" accept="image/*" capture="environment" id="ocr-file" onchange="recognizeText(this)">
     </div>
 
-    <div id="loading">Processing IMEI Barcode...</div>
+    <div id="loading">AI Engine is reading digits...</div>
 
-    <!-- Universal Invoice Component -->
+    <!-- Manual Adjusting Field (Populated by AI or user) -->
+    <div class="input-group">
+        <label for="imei-manual">Confirmed IMEI Number:</label>
+        <input type="text" id="imei-manual" class="input-field" placeholder="15-digit IMEI will appear here" maxlength="15">
+    </div>
+    <button class="btn" style="background-color: #4b5563;" onclick="generateInvoice()">📋 Process & Generate Invoice</button>
+
+    <!-- Invoice Render Area -->
     <div id="invoice" class="invoice-card">
         <div class="invoice-header">
             <h3>RECEIPT / INVOICE</h3>
@@ -184,7 +163,7 @@
         </div>
         <div class="invoice-row">
             <span><strong>Item:</strong></span>
-            <span>Smartphone (Fetched from DB)</span>
+            <span>Smartphone (Valid Device)</span>
         </div>
         <div class="invoice-row">
             <span><strong>Price:</strong></span>
@@ -196,47 +175,47 @@
 </div>
 
 <script>
-function setInvoiceData(imeiValue) {
+function recognizeText(input) {
+    if (!input.files || input.files.length === 0) return;
+    
+    const file = input.files[0];
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("invoice").style.display = "none";
+
+    // Trigger Tesseract OCR engine to read digits from the captured image
+    Tesseract.recognize(file, 'eng', { logger: m => console.log(m) })
+    .then(({ data: { text } }) => {
+        document.getElementById("loading").style.display = "none";
+        
+        // Use regular expression to extract only the 15-digit sequence of the IMEI
+        const imeiMatch = text.replace(/[^0-9]/g, "").match(/\d{15}/);
+        
+        if (imeiMatch) {
+            document.getElementById("imei-manual").value = imeiMatch[0];
+            generateInvoice();
+        } else {
+            // If full sequence is obscured, pass whatever numbers found to allow manual completion
+            const rawNumbers = text.replace(/[^0-9]/g, "");
+            document.getElementById("imei-manual").value = rawNumbers.substring(0, 15);
+            alert("AI read some digits but could not confirm a clean 15-digit IMEI. Please double-check and correct the field below.");
+        }
+    })
+    .catch(err => {
+        document.getElementById("loading").style.display = "none";
+        alert("AI Processing Failed: " + err);
+    });
+}
+
+function generateInvoice() {
+    const imeiValue = document.getElementById("imei-manual").value.trim();
+    if (imeiValue === "" || imeiValue.length < 14) {
+        alert("Please provide a valid 15-digit IMEI number in the field.");
+        return;
+    }
     document.getElementById("inv-imei").innerText = imeiValue;
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     document.getElementById("inv-date").innerText = new Date().toLocaleDateString('en-US', options);
     document.getElementById("invoice").style.display = "block";
-}
-
-function generateManualInvoice() {
-    const imeiInput = document.getElementById("imei-manual").value.trim();
-    if (imeiInput === "" || imeiInput.length < 14) {
-        alert("Please enter a valid IMEI number.");
-        return;
-    }
-    document.getElementById("loading").style.display = "none";
-    setInvoiceData(imeiInput);
-}
-
-function scanImage(input) {
-    if (!input.files || input.files.length === 0) return;
-    
-    const file = input.files;
-    document.getElementById("loading").style.display = "block";
-    document.getElementById("invoice").style.display = "none";
-
-    const html5QrCode = new Html5Qrcode("invoice", {
-        formatsToSupport: [ 
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.UPC_A
-        ]
-    }); 
-    
-    html5QrCode.scanFile(file, true)
-    .then(decodedText => {
-        document.getElementById("loading").style.display = "none";
-        setInvoiceData(decodedText);
-    })
-    .catch(err => {
-        document.getElementById("loading").style.display = "none";
-        alert("Failed to read barcode. For typed numbers on screens, please type them in the manual field above.");
-    });
 }
 </script>
 
