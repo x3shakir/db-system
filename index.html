@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Ultra IMEI Pro Scanner</title>
+<title>AI IMEI Scanner Final</title>
 
 <style>
 body{
@@ -19,7 +19,7 @@ body{
     background:#fff;
     padding:20px;
     border-radius:14px;
-    box-shadow:0 5px 20px rgba(0,0,0,0.15);
+    box-shadow:0 6px 25px rgba(0,0,0,0.15);
 }
 
 video{
@@ -48,7 +48,7 @@ video{
 }
 
 .imei{
-    font-size:20px;
+    font-size:22px;
     font-weight:bold;
     color:#0070f3;
 }
@@ -75,7 +75,7 @@ video{
 
 <div class="container">
 
-<h2>📱 Ultra IMEI Pro Scanner</h2>
+<h2>🧠 AI IMEI Scanner Final</h2>
 
 <video id="video" autoplay playsinline></video>
 
@@ -84,7 +84,7 @@ video{
 </div>
 
 <button class="btn" onclick="startCamera()">Start Camera</button>
-<button class="btn" onclick="captureAndScan()">Capture & Scan</button>
+<button class="btn" onclick="captureAI()">AI Scan</button>
 
 <div id="status">Ready</div>
 
@@ -100,11 +100,26 @@ const status = document.getElementById("status");
 const bar = document.getElementById("bar");
 
 const reader = new ZXing.BrowserMultiFormatReader();
-
 let stream = null;
 
 function setBar(v){
     bar.style.width = v + "%";
+}
+
+function vibrate(){
+    if(navigator.vibrate){
+        navigator.vibrate(200);
+    }
+}
+
+function beep(){
+    const ctx = new AudioContext();
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = 800;
+    o.connect(ctx.destination);
+    o.start();
+    setTimeout(()=>o.stop(),150);
 }
 
 async function startCamera(){
@@ -129,58 +144,66 @@ async function startCamera(){
     status.innerText = "Camera ready";
 }
 
-function stopCamera(){
-    if(stream){
-        stream.getTracks().forEach(t=>t.stop());
-    }
-    video.srcObject = null;
-}
+function preprocess(canvas){
 
-async function captureAndScan(){
-
-    status.innerText = "Capturing frame...";
-    setBar(30);
-
-    const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
-    // 🔥 تكبير بسيط لتحسين القراءة
-    const scale = 1.5;
-
-    canvas.width = video.videoWidth * scale;
-    canvas.height = video.videoHeight * scale;
-
-    ctx.filter = "contrast(1.8) brightness(1.2) grayscale(1)";
+    // 🧠 AI-like enhancement
+    ctx.filter = "contrast(2.0) brightness(1.3) grayscale(1)";
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-    setBar(60);
+    return canvas;
+}
 
-    let imei = null;
+async function scan(canvas){
 
-    // 🔁 3 محاولات لتحسين النجاح
-    for(let i=0;i<3;i++){
+    for(let i=0;i<4;i++){
 
         try{
-            const result = await reader.decodeFromCanvas(canvas);
-            const text = result.text;
+            const res = await reader.decodeFromCanvas(canvas);
+            const match = res.text.match(/\d{15}/);
 
-            const match = text.match(/\d{15}/);
-
-            if(match){
-                imei = match[0];
-                break;
-            }
+            if(match) return match[0];
 
         }catch(e){}
     }
 
-    setBar(100);
+    return null;
+}
+
+async function captureAI(){
+
+    status.innerText = "AI scanning...";
+    setBar(20);
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    setBar(40);
+
+    preprocess(canvas);
+
+    setBar(60);
+
+    const imei = await scan(canvas);
+
+    setBar(90);
 
     if(imei){
+
         document.getElementById("imei").innerText = imei;
-        status.innerText = "IMEI detected successfully!";
-    }else{
-        status.innerText = "No IMEI found - try better lighting";
+        status.innerText = "AI detected IMEI!";
+        setBar(100);
+
+        vibrate();
+        beep();
+
+    } else {
+
+        status.innerText = "No IMEI detected - try better lighting";
     }
 
     setTimeout(()=>setBar(0),1000);
