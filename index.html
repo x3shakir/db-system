@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro IMEI Scanner</title>
+<title>Ultra IMEI Scanner</title>
 
 <style>
 body{
@@ -16,7 +16,7 @@ body{
 .container{
     max-width:500px;
     margin:auto;
-    background:#fff;
+    background:white;
     padding:20px;
     border-radius:12px;
     box-shadow:0 4px 15px rgba(0,0,0,0.1);
@@ -26,12 +26,12 @@ body{
     width:100%;
     padding:12px;
     background:#0070f3;
-    color:#fff;
+    color:white;
     border:none;
     border-radius:8px;
     margin-top:10px;
-    font-size:16px;
     cursor:pointer;
+    font-size:16px;
 }
 
 .btn:hover{background:#0051bb;}
@@ -44,9 +44,26 @@ input{
 }
 
 #status{
-    display:none;
     margin-top:10px;
     color:#0070f3;
+}
+
+/* 🔥 Progress Bar */
+.progress-container{
+    width:100%;
+    background:#e5e7eb;
+    border-radius:10px;
+    margin-top:10px;
+    overflow:hidden;
+    height:12px;
+    display:none;
+}
+
+.progress-bar{
+    height:12px;
+    width:0%;
+    background:linear-gradient(90deg,#0070f3,#00c6ff);
+    transition:width 0.2s;
 }
 
 .invoice{
@@ -57,7 +74,10 @@ input{
     text-align:left;
 }
 
-.imei{color:#0070f3;font-weight:bold;}
+.imei{
+    font-weight:bold;
+    color:#0070f3;
+}
 </style>
 
 </head>
@@ -66,13 +86,17 @@ input{
 
 <div class="container">
 
-<h2>📷 Pro IMEI Scanner</h2>
+<h2>🔥 Ultra IMEI Scanner</h2>
 
 <input type="file" accept="image/*" capture="environment" id="fileInput">
 
 <input type="text" id="imei" placeholder="IMEI">
 
-<div id="status">Scanning...</div>
+<div id="status"></div>
+
+<div class="progress-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+</div>
 
 <button class="btn" onclick="generateInvoice()">Generate Invoice</button>
 
@@ -87,7 +111,6 @@ input{
 
 </div>
 
-<!-- ZXing Library -->
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 
 <script>
@@ -100,7 +123,19 @@ if('BarcodeDetector' in window){
     });
 }
 
-const codeReader = new ZXing.BrowserMultiFormatReader();
+const reader = new ZXing.BrowserMultiFormatReader();
+
+function setProgress(val){
+    document.getElementById("progressContainer").style.display="block";
+    document.getElementById("progressBar").style.width = val + "%";
+}
+
+function resetProgress(){
+    setTimeout(()=>{
+        document.getElementById("progressContainer").style.display="none";
+        document.getElementById("progressBar").style.width="0%";
+    },800);
+}
 
 document.getElementById("fileInput").addEventListener("change", async function(e){
 
@@ -108,55 +143,71 @@ document.getElementById("fileInput").addEventListener("change", async function(e
     if(!file) return;
 
     const status = document.getElementById("status");
-    status.style.display = "block";
-    status.innerText = "Processing image...";
+
+    status.innerText = "Scanning started...";
+    setProgress(10);
 
     const bitmap = await createImageBitmap(file);
 
-    // تحسين الصورة
+    setProgress(30);
+
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
-    const scale = Math.min(1280 / bitmap.width, 1280 / bitmap.height, 1);
+    const scale = Math.min(1600 / bitmap.width, 1600 / bitmap.height, 1);
 
     canvas.width = bitmap.width * scale;
     canvas.height = bitmap.height * scale;
 
-    // تحسين contrast بسيط
-    ctx.filter = "contrast(1.3) brightness(1.1)";
+    // 🔥 تحسين قوي للصورة
+    ctx.filter = "contrast(1.7) brightness(1.2) grayscale(1)";
     ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
 
     let raw = "";
 
-    // 1. BarcodeDetector (سريع)
+    setProgress(50);
+
+    // 1. BarcodeDetector
     if(detector){
         try{
             const res = await detector.detect(canvas);
-            if(res.length){
-                raw = res[0].rawValue;
-            }
+            if(res.length) raw = res[0].rawValue;
         }catch(e){}
     }
 
-    // 2. ZXing (احترافي قوي)
+    setProgress(70);
+
+    // 2. ZXing من الملف مباشرة (الأقوى)
     if(!raw){
         try{
-            const result = await codeReader.decodeFromCanvas(canvas);
+            const result = await reader.decodeFromImageUrl(URL.createObjectURL(file));
             raw = result.text;
         }catch(e){}
     }
 
+    setProgress(90);
+
+    // 3. fallback canvas
+    if(!raw){
+        try{
+            const result = await reader.decodeFromCanvas(canvas);
+            raw = result.text;
+        }catch(e){}
+    }
+
+    setProgress(100);
+
     // استخراج IMEI
-    const match = raw.match(/\d{15}/);
+    const match = raw.match(/\d{14,16}/);
 
     if(match){
         document.getElementById("imei").value = match[0];
         status.innerText = "IMEI detected successfully!";
-    }else{
+    } else {
         status.innerText = "No IMEI found - enter manually";
     }
 
-    setTimeout(()=>status.style.display="none",3000);
+    resetProgress();
 });
 
 // تحقق IMEI
@@ -169,14 +220,14 @@ function generateInvoice(){
     const imei = document.getElementById("imei").value.trim();
 
     if(!validateIMEI(imei)){
-        alert("Invalid IMEI (must be 15 digits)");
+        alert("Invalid IMEI");
         return;
     }
 
     document.getElementById("invImei").innerText = imei;
     document.getElementById("date").innerText = new Date().toLocaleString();
 
-    document.getElementById("invoice").style.display = "block";
+    document.getElementById("invoice").style.display="block";
 }
 </script>
 
